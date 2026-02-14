@@ -1,4 +1,4 @@
-import { pgTable, varchar, integer, boolean, timestamp, bigint, decimal, text, uuid, index, check } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, integer, boolean, timestamp, bigint, decimal, text, uuid, index, check, date } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // Instruments table - Enstrüman tanımları (metals/forex)
@@ -73,20 +73,60 @@ export const fetchState = pgTable('fetch_state', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Users table - Future user registration
+// Users table - User authentication
 export const users = pgTable(
   'users',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: varchar('email', { length: 255 }).notNull().unique(),
-    apiKey: varchar('api_key', { length: 100 }).notNull().unique(),
+    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    displayName: varchar('display_name', { length: 100 }),
     isActive: boolean('is_active').notNull().default(true),
-    rateLimitTier: varchar('rate_limit_tier', { length: 20 }).notNull().default('free'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   },
   (table) => ({
-    apiKeyIdx: index('idx_users_api_key').on(table.apiKey).where(sql`${table.isActive} = true`),
+    emailIdx: index('idx_users_email').on(table.email).where(sql`${table.isActive} = true`),
+  })
+);
+
+// Portfolios table - User portfolios (birikimler/borçlar)
+export const portfolios = pgTable(
+  'portfolios',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    type: varchar('type', { length: 20 }).notNull(), // 'birikim' | 'borc'
+    icon: varchar('icon', { length: 50 }).notNull().default('💰'),
+    color: varchar('color', { length: 20 }).notNull().default('#C6A15B'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_portfolios_user').on(table.userId),
+    typeCheck: check('portfolio_type_check', sql`${table.type} IN ('birikim', 'borc')`),
+  })
+);
+
+// Portfolio holdings table - Individual holdings within a portfolio
+export const portfolioHoldings = pgTable(
+  'portfolio_holdings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portfolioId: uuid('portfolio_id').notNull().references(() => portfolios.id, { onDelete: 'cascade' }),
+    instrumentId: varchar('instrument_id', { length: 50 }).notNull().references(() => instruments.id),
+    quantity: decimal('quantity', { precision: 18, scale: 6 }).notNull(),
+    purchasePrice: decimal('purchase_price', { precision: 18, scale: 6 }).notNull(),
+    purchaseDate: date('purchase_date').notNull(),
+    description: varchar('description', { length: 30 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    portfolioIdx: index('idx_holdings_portfolio').on(table.portfolioId),
+    instrumentIdx: index('idx_holdings_instrument').on(table.instrumentId),
   })
 );
 
@@ -101,3 +141,7 @@ export type FetchState = typeof fetchState.$inferSelect;
 export type NewFetchState = typeof fetchState.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type Portfolio = typeof portfolios.$inferSelect;
+export type NewPortfolio = typeof portfolios.$inferInsert;
+export type PortfolioHolding = typeof portfolioHoldings.$inferSelect;
+export type NewPortfolioHolding = typeof portfolioHoldings.$inferInsert;
