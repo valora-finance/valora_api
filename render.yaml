@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: valora-api
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        sync: false
+      - key: API_KEY
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUNCGIL_BASE_URL
+        value: https://finans.truncgil.com
+      - key: TCMB_BASE_URL
+        value: http://www.tcmb.gov.tr/kurlar
+      - key: EXCHANGERATE_BASE_URL
+        value: https://api.exchangerate.host
