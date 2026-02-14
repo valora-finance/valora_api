@@ -65,10 +65,10 @@ export async function initialDataFetch() {
       logger.warn('Initial forex fetch failed');
     }
 
-    // Backfill historical forex data (10 years)
+    // Backfill historical forex data (3 years)
     // This will check if data already exists and skip if present
     logger.info('Checking for historical forex backfill...');
-    const backfillResult = await refreshService.backfillHistoricalForex(10);
+    const backfillResult = await refreshService.backfillHistoricalForex(3);
     if (backfillResult.quotesCount > 0) {
       logger.info(
         { count: backfillResult.quotesCount },
