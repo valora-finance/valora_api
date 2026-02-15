@@ -79,7 +79,9 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: varchar('email', { length: 255 }).notNull().unique(),
-    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    passwordHash: varchar('password_hash', { length: 255 }),
+    provider: varchar('provider', { length: 20 }).notNull().default('email'),
+    providerId: varchar('provider_id', { length: 255 }),
     displayName: varchar('display_name', { length: 100 }),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -87,6 +89,7 @@ export const users = pgTable(
   },
   (table) => ({
     emailIdx: index('idx_users_email').on(table.email).where(sql`${table.isActive} = true`),
+    providerIdx: index('idx_users_provider_provider_id').on(table.provider, table.providerId),
   })
 );
 
