@@ -1,7 +1,6 @@
 import type { FastifyPluginAsync, FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { db } from '../../config/database';
 import { users } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -10,9 +9,36 @@ import { logger } from '../../utils/logger';
 
 const SALT_ROUNDS = 10;
 
-// JWKS endpoints for social providers
-const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
-const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+// Lazy-load jose (ESM-only package) via dynamic import
+let _jose: typeof import('jose') | null = null;
+async function getJose() {
+  if (!_jose) {
+    _jose = await import('jose');
+  }
+  return _jose;
+}
+
+// Lazy JWKS instances (created on first use)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _appleJWKS: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _googleJWKS: any = null;
+
+async function getAppleJWKS() {
+  if (!_appleJWKS) {
+    const jose = await getJose();
+    _appleJWKS = jose.createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+  }
+  return _appleJWKS;
+}
+
+async function getGoogleJWKS() {
+  if (!_googleJWKS) {
+    const jose = await getJose();
+    _googleJWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+  }
+  return _googleJWKS;
+}
 
 type RegisterBody = {
   email: string;
@@ -215,7 +241,9 @@ const authRoute: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      const { payload } = await jwtVerify(identityToken, APPLE_JWKS, {
+      const jose = await getJose();
+      const appleJWKS = await getAppleJWKS();
+      const { payload } = await jose.jwtVerify(identityToken, appleJWKS, {
         issuer: 'https://appleid.apple.com',
       });
 
@@ -263,7 +291,9 @@ const authRoute: FastifyPluginAsync = async (fastify) => {
 
       if (idToken) {
         // Primary path: verify ID token with Google JWKS
-        const { payload } = await jwtVerify(idToken, GOOGLE_JWKS, {
+        const jose = await getJose();
+        const googleJWKS = await getGoogleJWKS();
+        const { payload } = await jose.jwtVerify(idToken, googleJWKS, {
           issuer: ['accounts.google.com', 'https://accounts.google.com'],
         });
 
