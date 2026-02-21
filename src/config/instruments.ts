@@ -10,6 +10,7 @@ export const METAL_MAPPINGS: Record<string, string> = {
   'ata-altin': 'ata',
   'gram-has-altin': 'has',
   '22-ayar-bilezik': '22ayar',
+  '14-ayar-altin': '14ayar',
   'gremse-altin': 'gremse',
   'gumus': 'gumus_gram',
   // gumus_ons will be calculated: gumus * 28.35
