@@ -38,6 +38,12 @@ export const config = {
   sentry: {
     dsn: process.env.SENTRY_DSN,
   },
+
+  // Haremaltin.com historical data backfill
+  // Set HAREMALTIN_CF_CLEARANCE from browser DevTools (Application → Cookies)
+  haremaltin: {
+    cfClearance: process.env.HAREMALTIN_CF_CLEARANCE || '',
+  },
 } as const;
 
 export type Config = typeof config;

@@ -3,14 +3,17 @@ import { quotes, latestQuotes, fetchState } from '../db/schema';
 import { TruncgilService } from './data-sources/truncgil.service';
 import { TcmbService } from './data-sources/tcmb.service';
 import { ExchangeRateService } from './data-sources/exchangerate.service';
+import { HaremalAltinService } from './data-sources/haremaltin.service';
 import type { NormalizedQuote } from './data-sources/truncgil.service';
 import { logger } from '../utils/logger';
+import { config } from '../config';
 import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
 
 export class RefreshService {
   private truncgilService = new TruncgilService();
   private tcmbService = new TcmbService();
   private exchangeRateService = new ExchangeRateService();
+  private haremalAltinService = new HaremalAltinService();
   private cooldownMs = 10000; // 10 seconds cooldown between refresh attempts
 
   /**
@@ -157,6 +160,73 @@ export class RefreshService {
       return { success: true, quotesCount: historicalQuotes.length };
     } catch (error) {
       logger.error({ err: error }, 'Historical forex backfill failed');
+      return { success: false, quotesCount: 0 };
+    }
+  }
+
+  /**
+   * Backfill N years of historical metals data from haremaltin.com
+   * Run once on initial setup. Requires HAREMALTIN_CF_CLEARANCE env var.
+   *
+   * How to get cf_clearance:
+   *   1. Open https://www.haremaltin.com/grafik?tip=altin&birim=AYAR14 in Chrome
+   *   2. Open DevTools → Application → Cookies
+   *   3. Copy the value of the cf_clearance cookie
+   *   4. Set HAREMALTIN_CF_CLEARANCE=<value> in .env
+   */
+  async backfillHistoricalMetals(
+    years: number = 5
+  ): Promise<{ success: boolean; quotesCount: number }> {
+    const cfClearance = config.haremaltin.cfClearance;
+
+    if (!cfClearance) {
+      logger.warn(
+        'HAREMALTIN_CF_CLEARANCE is not set — skipping metals historical backfill. ' +
+        'See refresh.service.ts for instructions.'
+      );
+      return { success: false, quotesCount: 0 };
+    }
+
+    logger.info({ years }, 'Starting historical metals backfill from haremaltin.com...');
+
+    try {
+      // Check if 14ayar already has sufficient historical data
+      const cutoffTs = Math.floor(Date.now() / 1000) - years * 365 * 24 * 60 * 60;
+      const oldest14ayar = await db.query.quotes.findFirst({
+        where: (q, { eq, lte }) => and(eq(q.instrumentId, '14ayar'), lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)),
+        orderBy: quotes.ts,
+      });
+
+      if (oldest14ayar) {
+        logger.info('14ayar historical data already exists, skipping backfill');
+        return { success: true, quotesCount: 0 };
+      }
+
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setFullYear(startDate.getFullYear() - years);
+
+      const historicalQuotes = await this.haremalAltinService.fetchHistory(
+        'AYAR14',
+        startDate,
+        endDate,
+        cfClearance
+      );
+
+      if (historicalQuotes.length === 0) {
+        logger.warn('No 14ayar historical data received from haremaltin.com');
+        return { success: false, quotesCount: 0 };
+      }
+
+      await this.storeQuotesBatch(historicalQuotes);
+
+      logger.info(
+        { count: historicalQuotes.length },
+        'Historical metals (14ayar) backfill completed successfully'
+      );
+      return { success: true, quotesCount: historicalQuotes.length };
+    } catch (error) {
+      logger.error({ err: error }, 'Historical metals backfill failed');
       return { success: false, quotesCount: 0 };
     }
   }

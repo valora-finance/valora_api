@@ -39,9 +39,10 @@ export const INSTRUMENTS = {
     { id: 'ata', name: 'Ata Lira', code: 'XAU', unit: 'piece', sortOrder: 6 },
     { id: 'has', name: 'Has Altın', code: 'XAU', unit: 'gram', sortOrder: 7 },
     { id: '22ayar', name: '22 Ayar Bilezik', code: 'XAU', unit: 'gram', sortOrder: 8 },
-    { id: 'gremse', name: 'Gremse', code: 'XAU', unit: 'piece', sortOrder: 9 },
-    { id: 'gumus_gram', name: 'Gümüş (Gram)', code: 'XAG', unit: 'gram', sortOrder: 10 },
-    { id: 'gumus_ons', name: 'Gümüş (Ons)', code: 'XAG', unit: 'ounce', sortOrder: 11 },
+    { id: '14ayar', name: '14 Ayar Altın', code: 'XAU', unit: 'gram', sortOrder: 9 },
+    { id: 'gremse', name: 'Gremse', code: 'XAU', unit: 'piece', sortOrder: 10 },
+    { id: 'gumus_gram', name: 'Gümüş (Gram)', code: 'XAG', unit: 'gram', sortOrder: 11 },
+    { id: 'gumus_ons', name: 'Gümüş (Ons)', code: 'XAG', unit: 'ounce', sortOrder: 12 },
   ],
   fx: [
     { id: 'USDTRY', name: 'USD/TRY', code: 'USD', sortOrder: 1 },

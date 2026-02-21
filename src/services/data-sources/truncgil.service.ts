@@ -84,6 +84,20 @@ export class TruncgilService {
       }
     }
 
+    // Calculate 14ayar (14-karat gold) from gram altın (24k) using 14/24 ratio
+    const gramAltin = quotes.find((q) => q.instrumentId === 'gram');
+    if (gramAltin) {
+      const ratio = 14 / 24;
+      quotes.push({
+        instrumentId: '14ayar',
+        ts: now,
+        price: gramAltin.price * ratio,
+        buy: gramAltin.buy ? gramAltin.buy * ratio : null,
+        sell: gramAltin.sell ? gramAltin.sell * ratio : null,
+        source: 'truncgil_calculated',
+      });
+    }
+
     // Calculate gumus_ons (silver ounce) from gumus (silver gram)
     const gumusGram = quotes.find((q) => q.instrumentId === 'gumus_gram');
     if (gumusGram) {
