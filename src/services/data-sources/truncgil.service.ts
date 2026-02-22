@@ -84,30 +84,19 @@ export class TruncgilService {
       }
     }
 
-    // Calculate gumus_ons (silver ounce) from gumus (silver gram)
-    const gumusGram = quotes.find((q) => q.instrumentId === 'gumus_gram');
-    if (gumusGram) {
-      quotes.push({
-        instrumentId: 'gumus_ons',
-        ts: now,
-        price: gumusGram.price * 28.3495, // 1 oz = 28.3495 grams
-        buy: gumusGram.buy ? gumusGram.buy * 28.3495 : null,
-        sell: gumusGram.sell ? gumusGram.sell * 28.3495 : null,
-        source: 'truncgil_calculated',
-      });
-    }
-
     return quotes;
   }
 
   /**
    * Parse Turkish decimal format to number
-   * Example: "6.942,61" → 6942.61
+   * Examples: "6.942,61" → 6942.61, "$5.096,79" → 5096.79
    */
   parsePrice(priceStr: string): number {
     if (!priceStr) return 0;
+    // Strip currency symbols ($ € etc.) and whitespace
+    const stripped = priceStr.replace(/[^0-9.,]/g, '');
     // Remove thousand separators (.) and replace decimal comma (,) with dot (.)
-    const normalized = priceStr.replace(/\./g, '').replace(',', '.');
+    const normalized = stripped.replace(/\./g, '').replace(',', '.');
     return parseFloat(normalized);
   }
 }

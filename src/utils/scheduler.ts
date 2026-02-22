@@ -78,17 +78,17 @@ export async function initialDataFetch() {
       logger.info('Historical forex backfill skipped (data already exists or failed)');
     }
 
-    // Backfill 14ayar historical data (5 years) from haremaltin.com
+    // Backfill ALL metals historical data (5 years) from haremaltin.com
     // Requires HAREMALTIN_CF_CLEARANCE env var — skipped silently if not set
-    logger.info('Checking for 14ayar historical metals backfill...');
+    logger.info('Checking for metals historical backfill...');
     const metalsBackfillResult = await refreshService.backfillHistoricalMetals(5);
     if (metalsBackfillResult.quotesCount > 0) {
       logger.info(
         { count: metalsBackfillResult.quotesCount },
-        '14ayar historical data backfilled successfully'
+        'Metals historical data backfilled successfully'
       );
     } else {
-      logger.info('14ayar historical backfill skipped (data already exists, no cookie, or failed)');
+      logger.info('Metals historical backfill skipped (data already exists, no cookie, or failed)');
     }
 
     logger.info('Initial data fetch completed');

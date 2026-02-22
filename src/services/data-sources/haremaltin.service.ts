@@ -1,12 +1,14 @@
+import { execSync } from 'child_process';
 import { logger } from '../../utils/logger';
+import { HAREMALTIN_MAPPINGS } from '../../config/instruments';
 import type { NormalizedQuote } from './truncgil.service';
 
 // Response type from haremaltin.com /ajax/cur/history
-// NOTE: Verify this against actual response if parsing fails
 type HaremalAltinHistoryItem = {
-  tarih: string;  // Date string, e.g. "2021-02-22" or "22.02.2021"
-  alis: string;   // Buy price (Turkish decimal: "441,50" or "441.50")
-  satis: string;  // Sell price
+  alis: string;           // Buy price (Turkish decimal: "441,50" or "441.50")
+  satis: string;          // Sell price
+  kayit_tarihi?: string;  // Date field from API: "2026-02-21 23:59:01"
+  tarih?: string;         // Alternate date field: "2021-02-22" or "22.02.2021"
 };
 
 type HaremalAltinResponse = {
@@ -45,26 +47,7 @@ export class HaremalAltinService {
     logger.info({ kod, tarih1, tarih2 }, 'Fetching historical data from haremaltin.com');
 
     try {
-      const response = await fetch(`${this.baseUrl}/ajax/cur/history`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Origin': this.baseUrl,
-          'Referer': `${this.baseUrl}/grafik?tip=altin&birim=${kod}`,
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
-          'Cookie': `cf_clearance=${cfClearance}`,
-        },
-        body: body.toString(),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!response.ok) {
-        throw new Error(`haremaltin API error: ${response.status} ${response.statusText}`);
-      }
-
-      const raw = await response.json();
+      const raw = await this.fetchWithCurl(kod, body.toString(), cfClearance);
 
       // Log raw response structure on first run to verify parsing
       logger.debug({ sample: JSON.stringify(raw).slice(0, 200) }, 'haremaltin raw response sample');
@@ -105,7 +88,8 @@ export class HaremalAltinService {
 
     for (const item of items) {
       try {
-        const ts = this.parseDateToTs(item.tarih);
+        const dateStr = item.kayit_tarihi ?? item.tarih ?? '';
+        const ts = this.parseDateToTs(dateStr);
         if (!ts) continue;
 
         const buy = this.parsePrice(item.alis);
@@ -134,11 +118,7 @@ export class HaremalAltinService {
    * Map haremaltin instrument codes to our internal IDs
    */
   private kodToInstrumentId(kod: string): string {
-    const map: Record<string, string> = {
-      AYAR14: '14ayar',
-      AYAR22: '22ayar',
-    };
-    return map[kod] ?? kod.toLowerCase();
+    return HAREMALTIN_MAPPINGS[kod] ?? kod.toLowerCase();
   }
 
   /**
@@ -182,6 +162,95 @@ export class HaremalAltinService {
     // Remove thousand separators (.) and replace decimal comma (,) with dot
     const normalized = priceStr.replace(/\./g, '').replace(',', '.');
     return parseFloat(normalized) || 0;
+  }
+
+  /**
+   * Fetch the most recent prices for given instrument codes.
+   * Uses the history endpoint with a short date range to get near-live data.
+   */
+  async fetchLatest(
+    kodList: string[],
+    cfClearance: string
+  ): Promise<NormalizedQuote[]> {
+    const allQuotes: NormalizedQuote[] = [];
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 2); // Last 2 days to ensure data
+
+    for (const kod of kodList) {
+      try {
+        const quotes = await this.fetchHistory(kod, startDate, endDate, cfClearance);
+        if (quotes.length > 0) {
+          // Take only the most recent data point
+          const latest = quotes[quotes.length - 1];
+          allQuotes.push(latest);
+        }
+      } catch (error) {
+        logger.warn({ kod, err: error }, 'Failed to fetch latest from haremaltin');
+      }
+    }
+
+    return allQuotes;
+  }
+
+  /**
+   * Fetch from haremaltin using curl subprocess.
+   * Node.js fetch gets 403 from Cloudflare due to TLS fingerprinting,
+   * but curl works fine with the same cf_clearance cookie.
+   */
+  private async fetchWithCurl(
+    kod: string,
+    bodyStr: string,
+    cfClearance: string
+  ): Promise<unknown> {
+    const url = `${this.baseUrl}/ajax/cur/history`;
+    const curlCmd = [
+      'curl', '-s', '-S', '--max-time', '30',
+      '-X', 'POST', url,
+      '-H', 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+      '-H', 'X-Requested-With: XMLHttpRequest',
+      '-H', `Origin: ${this.baseUrl}`,
+      '-H', `Referer: ${this.baseUrl}/grafik?tip=altin&birim=${kod}`,
+      '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+      '-H', 'Accept: application/json, text/javascript, */*; q=0.01',
+      '-H', 'sec-ch-ua: "Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
+      '-H', 'sec-ch-ua-mobile: ?0',
+      '-H', 'sec-ch-ua-platform: "macOS"',
+      '-H', 'sec-fetch-dest: empty',
+      '-H', 'sec-fetch-mode: cors',
+      '-H', 'sec-fetch-site: same-origin',
+      '-b', `cf_clearance=${cfClearance}`,
+      '-d', bodyStr,
+    ];
+
+    // Escape for shell execution
+    const escaped = curlCmd.map(arg => {
+      if (arg.includes(' ') || arg.includes('"') || arg.includes("'") || arg.includes(';') || arg.includes('&')) {
+        return `'${arg.replace(/'/g, "'\\''")}'`;
+      }
+      return arg;
+    }).join(' ');
+
+    try {
+      const output = execSync(escaped, {
+        encoding: 'utf-8',
+        timeout: 35000,
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+      });
+
+      if (!output || output.trim().length === 0) {
+        throw new Error('Empty response from haremaltin curl');
+      }
+
+      return JSON.parse(output);
+    } catch (error) {
+      const err = error as Error & { status?: number; stderr?: string };
+      logger.error(
+        { kod, stderr: err.stderr?.slice(0, 200), message: err.message },
+        'curl request to haremaltin failed'
+      );
+      throw new Error(`haremaltin curl failed for ${kod}: ${err.message}`);
+    }
   }
 
   /**

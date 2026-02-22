@@ -4,10 +4,44 @@ import { TruncgilService } from './data-sources/truncgil.service';
 import { TcmbService } from './data-sources/tcmb.service';
 import { ExchangeRateService } from './data-sources/exchangerate.service';
 import { HaremalAltinService } from './data-sources/haremaltin.service';
+import { HAREMALTIN_ONLY_INSTRUMENTS, HAREMALTIN_MAPPINGS } from '../config/instruments';
 import type { NormalizedQuote } from './data-sources/truncgil.service';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
+
+// All instruments to backfill from Haremaltin (both existing and new)
+const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
+  // Existing instruments (currently only AYAR14 has historical data)
+  { kod: 'AYAR14', instrumentId: '14ayar' },
+  { kod: 'AYAR22', instrumentId: '22ayar' },
+  { kod: 'ONS', instrumentId: 'ons' },
+  { kod: 'ALTIN', instrumentId: 'has' },
+  { kod: 'KULCEALTIN', instrumentId: 'gram' },
+  { kod: 'CEYREK_YENI', instrumentId: 'ceyrek' },
+  { kod: 'YARIM_YENI', instrumentId: 'yarim' },
+  { kod: 'TEK_YENI', instrumentId: 'tam' },
+  { kod: 'ATA_YENI', instrumentId: 'ata' },
+  { kod: 'GREMESE_YENI', instrumentId: 'gremse' },
+  { kod: 'GUMUSTRY', instrumentId: 'gumus_gram' },
+  { kod: 'XAGUSD', instrumentId: 'gumus_ons' },
+  // New instruments
+  { kod: 'CEYREK_ESKI', instrumentId: 'ceyrek_eski' },
+  { kod: 'YARIM_ESKI', instrumentId: 'yarim_eski' },
+  { kod: 'TEK_ESKI', instrumentId: 'tam_eski' },
+  { kod: 'ATA_ESKI', instrumentId: 'ata_eski' },
+  { kod: 'ATA5_YENI', instrumentId: 'ata5' },
+  { kod: 'ATA5_ESKI', instrumentId: 'ata5_eski' },
+  { kod: 'GREMESE_ESKI', instrumentId: 'gremse_eski' },
+  { kod: 'GUMUSUSD', instrumentId: 'gumus_usd' },
+  { kod: 'XPTUSD', instrumentId: 'platin_ons' },
+  { kod: 'XPDUSD', instrumentId: 'paladyum_ons' },
+  { kod: 'PLATIN', instrumentId: 'platin' },
+  { kod: 'PALADYUM', instrumentId: 'paladyum' },
+  { kod: 'USDKG', instrumentId: 'usdkg' },
+  { kod: 'EURKG', instrumentId: 'eurkg' },
+  { kod: 'XAUXAG', instrumentId: 'xauxag' },
+];
 
 export class RefreshService {
   private truncgilService = new TruncgilService();
@@ -17,7 +51,7 @@ export class RefreshService {
   private cooldownMs = 10000; // 10 seconds cooldown between refresh attempts
 
   /**
-   * Refresh metals data from Truncgil API
+   * Refresh metals data from Truncgil API + Haremaltin (for instruments not in Truncgil)
    */
   async refreshMetals(): Promise<{ success: boolean; quotesCount: number }> {
     const category = 'metals';
@@ -33,11 +67,28 @@ export class RefreshService {
       // Update attempt timestamp
       await this.updateFetchState(category, 'in_progress', null);
 
-      // Fetch current data
+      // Fetch current data from Truncgil (primary source)
       const quotesData = await this.truncgilService.fetchMetals();
 
       if (quotesData.length === 0) {
         throw new Error('No metals data received from Truncgil');
+      }
+
+      // Fetch Haremaltin-only instruments (eski variants, USD-based, etc.)
+      const cfClearance = config.haremaltin.cfClearance;
+      if (cfClearance) {
+        try {
+          const haremQuotes = await this.haremalAltinService.fetchLatest(
+            HAREMALTIN_ONLY_INSTRUMENTS,
+            cfClearance
+          );
+          if (haremQuotes.length > 0) {
+            quotesData.push(...haremQuotes);
+            logger.info({ count: haremQuotes.length }, 'Haremaltin live quotes fetched');
+          }
+        } catch (error) {
+          logger.warn({ err: error }, 'Haremaltin live fetch failed, continuing with Truncgil data only');
+        }
       }
 
       // Store in database
@@ -166,6 +217,7 @@ export class RefreshService {
 
   /**
    * Backfill N years of historical metals data from haremaltin.com
+   * Fetches ALL instruments defined in BACKFILL_INSTRUMENTS.
    * Run once on initial setup. Requires HAREMALTIN_CF_CLEARANCE env var.
    *
    * How to get cf_clearance:
@@ -187,48 +239,61 @@ export class RefreshService {
       return { success: false, quotesCount: 0 };
     }
 
-    logger.info({ years }, 'Starting historical metals backfill from haremaltin.com...');
+    logger.info({ years, instrumentCount: BACKFILL_INSTRUMENTS.length }, 'Starting historical metals backfill from haremaltin.com...');
 
-    try {
-      // Check if 14ayar already has sufficient historical data
-      const cutoffTs = Math.floor(Date.now() / 1000) - years * 365 * 24 * 60 * 60;
-      const oldest14ayar = await db.query.quotes.findFirst({
-        where: (q, { eq, lte }) => and(eq(q.instrumentId, '14ayar'), lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)),
-        orderBy: quotes.ts,
-      });
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - years);
+    const cutoffTs = Math.floor(startDate.getTime() / 1000);
 
-      if (oldest14ayar) {
-        logger.info('14ayar historical data already exists, skipping backfill');
-        return { success: true, quotesCount: 0 };
+    let totalQuotes = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    for (const { kod, instrumentId } of BACKFILL_INSTRUMENTS) {
+      try {
+        // Check if this instrument already has sufficient historical data
+        const oldest = await db.query.quotes.findFirst({
+          where: (q, { eq, lte }) => and(
+            eq(q.instrumentId, instrumentId),
+            lte(q.ts, cutoffTs + 30 * 24 * 60 * 60) // 30-day buffer
+          ),
+          orderBy: quotes.ts,
+        });
+
+        if (oldest) {
+          logger.debug({ instrumentId, kod }, 'Historical data already exists, skipping');
+          skippedCount++;
+          continue;
+        }
+
+        logger.info({ kod, instrumentId }, 'Fetching historical data...');
+        const historicalQuotes = await this.haremalAltinService.fetchHistory(
+          kod,
+          startDate,
+          endDate,
+          cfClearance
+        );
+
+        if (historicalQuotes.length === 0) {
+          logger.warn({ kod }, 'No historical data received');
+          continue;
+        }
+
+        await this.storeQuotesBatch(historicalQuotes);
+        totalQuotes += historicalQuotes.length;
+        logger.info({ kod, instrumentId, count: historicalQuotes.length }, 'Historical data backfilled');
+      } catch (error) {
+        failedCount++;
+        logger.error({ err: error, kod, instrumentId }, 'Failed to backfill instrument');
       }
-
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setFullYear(startDate.getFullYear() - years);
-
-      const historicalQuotes = await this.haremalAltinService.fetchHistory(
-        'AYAR14',
-        startDate,
-        endDate,
-        cfClearance
-      );
-
-      if (historicalQuotes.length === 0) {
-        logger.warn('No 14ayar historical data received from haremaltin.com');
-        return { success: false, quotesCount: 0 };
-      }
-
-      await this.storeQuotesBatch(historicalQuotes);
-
-      logger.info(
-        { count: historicalQuotes.length },
-        'Historical metals (14ayar) backfill completed successfully'
-      );
-      return { success: true, quotesCount: historicalQuotes.length };
-    } catch (error) {
-      logger.error({ err: error }, 'Historical metals backfill failed');
-      return { success: false, quotesCount: 0 };
     }
+
+    logger.info(
+      { totalQuotes, skippedCount, failedCount, total: BACKFILL_INSTRUMENTS.length },
+      'Historical metals backfill completed'
+    );
+    return { success: true, quotesCount: totalQuotes };
   }
 
   /**
