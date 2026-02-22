@@ -12,7 +12,6 @@ import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
 
 // All instruments to backfill from Haremaltin (both existing and new)
 const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
-  // Existing instruments (currently only AYAR14 has historical data)
   { kod: 'AYAR14', instrumentId: '14ayar' },
   { kod: 'AYAR22', instrumentId: '22ayar' },
   { kod: 'ONS', instrumentId: 'ons' },
@@ -22,17 +21,10 @@ const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
   { kod: 'YARIM_YENI', instrumentId: 'yarim' },
   { kod: 'TEK_YENI', instrumentId: 'tam' },
   { kod: 'ATA_YENI', instrumentId: 'ata' },
+  { kod: 'ATA5_YENI', instrumentId: 'ata5' },
   { kod: 'GREMESE_YENI', instrumentId: 'gremse' },
   { kod: 'GUMUSTRY', instrumentId: 'gumus_gram' },
   { kod: 'XAGUSD', instrumentId: 'gumus_ons' },
-  // New instruments
-  { kod: 'CEYREK_ESKI', instrumentId: 'ceyrek_eski' },
-  { kod: 'YARIM_ESKI', instrumentId: 'yarim_eski' },
-  { kod: 'TEK_ESKI', instrumentId: 'tam_eski' },
-  { kod: 'ATA_ESKI', instrumentId: 'ata_eski' },
-  { kod: 'ATA5_YENI', instrumentId: 'ata5' },
-  { kod: 'ATA5_ESKI', instrumentId: 'ata5_eski' },
-  { kod: 'GREMESE_ESKI', instrumentId: 'gremse_eski' },
   { kod: 'GUMUSUSD', instrumentId: 'gumus_usd' },
   { kod: 'XPTUSD', instrumentId: 'platin_ons' },
   { kod: 'XPDUSD', instrumentId: 'paladyum_ons' },
