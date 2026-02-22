@@ -14,6 +14,7 @@ const KUR_MAPPINGS: Record<string, string> = {
   TAM: 'tam',
   ATA: 'ata',
   GUMUS: 'gumus_gram',
+  XAG: 'gumus_gram',   // silver endpoint uses kur=XAG with banka=_gumus
 };
 
 // Turkish month names → month index (0-based)
@@ -29,12 +30,13 @@ export class AltinInService {
 
   /**
    * Fetch historical daily prices from altin.in
-   * @param kur  Instrument code e.g. 'Y14', 'ALTIN', 'CEYREK'
-   * @param days Number of days of history (max ~1825 = 5 years)
+   * @param kur   Instrument code e.g. 'Y14', 'ALTIN', 'XAG'
+   * @param days  Number of days of history (max ~1825 = 5 years)
+   * @param banka Bank/market identifier — 'altin' for gold, '_gumus' for silver
    */
-  async fetchHistory(kur: string, days: number = 1825): Promise<NormalizedQuote[]> {
-    const url = `${this.baseUrl}/grafikur.asp?did=flash_grafik&ca=1&islem=gunluk&gun=${days}&sa=sat&kur=${kur}&banka=altin&k=`;
-    logger.info({ kur, days }, 'Fetching history from altin.in');
+  async fetchHistory(kur: string, days: number = 1825, banka: string = 'altin'): Promise<NormalizedQuote[]> {
+    const url = `${this.baseUrl}/grafikur.asp?did=flash_grafik&ca=1&islem=gunluk&gun=${days}&sa=sat&kur=${kur}&banka=${banka}&k=`;
+    logger.info({ kur, days, banka }, 'Fetching history from altin.in');
 
     const raw = await this.fetchUrl(url);
     return this.parse(kur, raw);

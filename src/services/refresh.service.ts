@@ -12,8 +12,9 @@ import { config } from '../config';
 import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
 
 // Instruments to backfill from altin.in (no cf_clearance required)
-const ALTININ_BACKFILL_INSTRUMENTS: Array<{ kur: string; instrumentId: string }> = [
+const ALTININ_BACKFILL_INSTRUMENTS: Array<{ kur: string; instrumentId: string; banka?: string }> = [
   { kur: 'Y14', instrumentId: '14ayar' },
+  { kur: 'XAG', instrumentId: 'gumus_gram', banka: '_gumus' },
 ];
 
 // All instruments to backfill from Haremaltin (both existing and new)
@@ -289,7 +290,7 @@ export class RefreshService {
 
     // Backfill altin.in instruments (no cf_clearance required)
     logger.info({ count: ALTININ_BACKFILL_INSTRUMENTS.length }, 'Starting altin.in backfill...');
-    for (const { kur, instrumentId } of ALTININ_BACKFILL_INSTRUMENTS) {
+    for (const { kur, instrumentId, banka = 'altin' } of ALTININ_BACKFILL_INSTRUMENTS) {
       try {
         const oldest = await db.query.quotes.findFirst({
           where: (q, { eq, lte }) => and(
@@ -306,7 +307,7 @@ export class RefreshService {
         }
 
         const days = years * 365;
-        const altinInQuotes = await this.altinInService.fetchHistory(kur, days);
+        const altinInQuotes = await this.altinInService.fetchHistory(kur, days, banka);
 
         if (altinInQuotes.length === 0) {
           logger.warn({ kur }, 'altin.in: no historical data received');
