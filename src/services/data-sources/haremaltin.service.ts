@@ -154,14 +154,21 @@ export class HaremalAltinService {
   }
 
   /**
-   * Parse Turkish decimal price string to number
-   * Handles: "441,50", "1.441,50", "441.50"
+   * Parse price string to number.
+   * Haremaltin API returns English decimal format: "7356.1000", "411.4500"
+   * Also handles Turkish format just in case: "1.441,50" (dot=thousand, comma=decimal)
    */
   private parsePrice(priceStr: string): number {
     if (!priceStr) return 0;
-    // Remove thousand separators (.) and replace decimal comma (,) with dot
-    const normalized = priceStr.replace(/\./g, '').replace(',', '.');
-    return parseFloat(normalized) || 0;
+
+    // If string contains comma → Turkish format (dot=thousand, comma=decimal)
+    if (priceStr.includes(',')) {
+      const normalized = priceStr.replace(/\./g, '').replace(',', '.');
+      return parseFloat(normalized) || 0;
+    }
+
+    // Otherwise English format: dot is decimal separator
+    return parseFloat(priceStr) || 0;
   }
 
   /**
