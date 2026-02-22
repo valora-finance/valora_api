@@ -20,7 +20,6 @@ export const METAL_MAPPINGS: Record<string, string> = {
 
 // Haremaltin instrument code → Our Instrument ID
 export const HAREMALTIN_MAPPINGS: Record<string, string> = {
-  AYAR14: '14ayar',
   AYAR22: '22ayar',
   ALTIN: 'has',
   ONS: 'ons',

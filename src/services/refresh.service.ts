@@ -12,7 +12,6 @@ import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
 
 // All instruments to backfill from Haremaltin (both existing and new)
 const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
-  { kod: 'AYAR14', instrumentId: '14ayar' },
   { kod: 'AYAR22', instrumentId: '22ayar' },
   { kod: 'ONS', instrumentId: 'ons' },
   { kod: 'ALTIN', instrumentId: 'has' },
