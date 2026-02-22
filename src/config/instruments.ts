@@ -4,7 +4,7 @@ export const METAL_MAPPINGS: Record<string, string> = {
   // Truncgil API key → Our Instrument ID
   'gram-altin': 'gram',
   'ceyrek-altin': 'ceyrek',
-  'ons': 'ons',
+  'ons': 'ons',               // Returns USD price ($ prefix) — quoteCurrency=USD in DB
   'yarim-altin': 'yarim',
   'tam-altin': 'tam',
   'ata-altin': 'ata',

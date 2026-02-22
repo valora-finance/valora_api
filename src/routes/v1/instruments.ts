@@ -16,6 +16,7 @@ type InstrumentsResponse = {
     name: string;
     code: string;
     category: string;
+    quoteCurrency: string;
     unit?: string | null;
     sortOrder: number;
   }>;
@@ -70,6 +71,7 @@ const instrumentsRoute: FastifyPluginAsync = async (fastify) => {
           name: i.name,
           code: i.code,
           category: i.category,
+          quoteCurrency: i.quoteCurrency,
           unit: i.unit,
           sortOrder: i.sortOrder,
         })),

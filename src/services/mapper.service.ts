@@ -27,6 +27,7 @@ export class MapperService {
       source: quote.source,
       name: instrument?.name,
       code: instrument?.code,
+      quoteCurrency: instrument?.quoteCurrency,
     };
   }
 

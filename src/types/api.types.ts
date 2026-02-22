@@ -14,6 +14,7 @@ export type ApiRateItem = {
   source: string;
   name?: string;
   code?: string;
+  quoteCurrency?: string;
 };
 
 export type ApiLatestResponse = {
