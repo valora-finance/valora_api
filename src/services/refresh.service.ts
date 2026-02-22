@@ -4,11 +4,17 @@ import { TruncgilService } from './data-sources/truncgil.service';
 import { TcmbService } from './data-sources/tcmb.service';
 import { ExchangeRateService } from './data-sources/exchangerate.service';
 import { HaremalAltinService } from './data-sources/haremaltin.service';
+import { AltinInService } from './data-sources/altinin.service';
 import { HAREMALTIN_ONLY_INSTRUMENTS, HAREMALTIN_MAPPINGS } from '../config/instruments';
 import type { NormalizedQuote } from './data-sources/truncgil.service';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
+
+// Instruments to backfill from altin.in (no cf_clearance required)
+const ALTININ_BACKFILL_INSTRUMENTS: Array<{ kur: string; instrumentId: string }> = [
+  { kur: 'Y14', instrumentId: '14ayar' },
+];
 
 // All instruments to backfill from Haremaltin (both existing and new)
 const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
@@ -39,6 +45,7 @@ export class RefreshService {
   private tcmbService = new TcmbService();
   private exchangeRateService = new ExchangeRateService();
   private haremalAltinService = new HaremalAltinService();
+  private altinInService = new AltinInService();
   private cooldownMs = 10000; // 10 seconds cooldown between refresh attempts
 
   /**
@@ -280,8 +287,43 @@ export class RefreshService {
       }
     }
 
+    // Backfill altin.in instruments (no cf_clearance required)
+    logger.info({ count: ALTININ_BACKFILL_INSTRUMENTS.length }, 'Starting altin.in backfill...');
+    for (const { kur, instrumentId } of ALTININ_BACKFILL_INSTRUMENTS) {
+      try {
+        const oldest = await db.query.quotes.findFirst({
+          where: (q, { eq, lte }) => and(
+            eq(q.instrumentId, instrumentId),
+            lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)
+          ),
+          orderBy: quotes.ts,
+        });
+
+        if (oldest) {
+          logger.debug({ instrumentId, kur }, 'altin.in: historical data already exists, skipping');
+          skippedCount++;
+          continue;
+        }
+
+        const days = years * 365;
+        const altinInQuotes = await this.altinInService.fetchHistory(kur, days);
+
+        if (altinInQuotes.length === 0) {
+          logger.warn({ kur }, 'altin.in: no historical data received');
+          continue;
+        }
+
+        await this.storeQuotesBatch(altinInQuotes);
+        totalQuotes += altinInQuotes.length;
+        logger.info({ kur, instrumentId, count: altinInQuotes.length }, 'altin.in historical data backfilled');
+      } catch (error) {
+        failedCount++;
+        logger.error({ err: error, kur, instrumentId }, 'altin.in: failed to backfill instrument');
+      }
+    }
+
     logger.info(
-      { totalQuotes, skippedCount, failedCount, total: BACKFILL_INSTRUMENTS.length },
+      { totalQuotes, skippedCount, failedCount, total: BACKFILL_INSTRUMENTS.length + ALTININ_BACKFILL_INSTRUMENTS.length },
       'Historical metals backfill completed'
     );
     return { success: true, quotesCount: totalQuotes };
