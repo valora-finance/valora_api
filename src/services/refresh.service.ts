@@ -230,16 +230,6 @@ export class RefreshService {
   ): Promise<{ success: boolean; quotesCount: number }> {
     const cfClearance = config.haremaltin.cfClearance;
 
-    if (!cfClearance) {
-      logger.warn(
-        'HAREMALTIN_CF_CLEARANCE is not set — skipping metals historical backfill. ' +
-        'See refresh.service.ts for instructions.'
-      );
-      return { success: false, quotesCount: 0 };
-    }
-
-    logger.info({ years, instrumentCount: BACKFILL_INSTRUMENTS.length }, 'Starting historical metals backfill from haremaltin.com...');
-
     const endDate = new Date();
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - years);
@@ -248,6 +238,51 @@ export class RefreshService {
     let totalQuotes = 0;
     let skippedCount = 0;
     let failedCount = 0;
+
+    // Backfill altin.in instruments (no cf_clearance required — always runs)
+    logger.info({ count: ALTININ_BACKFILL_INSTRUMENTS.length }, 'Starting altin.in backfill...');
+    for (const { kur, instrumentId, banka = 'altin' } of ALTININ_BACKFILL_INSTRUMENTS) {
+      try {
+        const oldest = await db.query.quotes.findFirst({
+          where: (q, { eq, lte }) => and(
+            eq(q.instrumentId, instrumentId),
+            lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)
+          ),
+          orderBy: quotes.ts,
+        });
+
+        if (oldest) {
+          logger.debug({ instrumentId, kur }, 'altin.in: historical data already exists, skipping');
+          skippedCount++;
+          continue;
+        }
+
+        const days = years * 365;
+        const altinInQuotes = await this.altinInService.fetchHistory(kur, days, banka);
+
+        if (altinInQuotes.length === 0) {
+          logger.warn({ kur }, 'altin.in: no historical data received');
+          continue;
+        }
+
+        await this.storeQuotesBatch(altinInQuotes);
+        totalQuotes += altinInQuotes.length;
+        logger.info({ kur, instrumentId, count: altinInQuotes.length }, 'altin.in historical data backfilled');
+      } catch (error) {
+        failedCount++;
+        logger.error({ err: error, kur, instrumentId }, 'altin.in: failed to backfill instrument');
+      }
+    }
+
+    if (!cfClearance) {
+      logger.warn(
+        'HAREMALTIN_CF_CLEARANCE is not set — skipping Haremaltin historical backfill. ' +
+        'See refresh.service.ts for instructions.'
+      );
+      return { success: true, quotesCount: totalQuotes };
+    }
+
+    logger.info({ years, instrumentCount: BACKFILL_INSTRUMENTS.length }, 'Starting historical metals backfill from haremaltin.com...');
 
     for (const { kod, instrumentId } of BACKFILL_INSTRUMENTS) {
       try {
@@ -285,41 +320,6 @@ export class RefreshService {
       } catch (error) {
         failedCount++;
         logger.error({ err: error, kod, instrumentId }, 'Failed to backfill instrument');
-      }
-    }
-
-    // Backfill altin.in instruments (no cf_clearance required)
-    logger.info({ count: ALTININ_BACKFILL_INSTRUMENTS.length }, 'Starting altin.in backfill...');
-    for (const { kur, instrumentId, banka = 'altin' } of ALTININ_BACKFILL_INSTRUMENTS) {
-      try {
-        const oldest = await db.query.quotes.findFirst({
-          where: (q, { eq, lte }) => and(
-            eq(q.instrumentId, instrumentId),
-            lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)
-          ),
-          orderBy: quotes.ts,
-        });
-
-        if (oldest) {
-          logger.debug({ instrumentId, kur }, 'altin.in: historical data already exists, skipping');
-          skippedCount++;
-          continue;
-        }
-
-        const days = years * 365;
-        const altinInQuotes = await this.altinInService.fetchHistory(kur, days, banka);
-
-        if (altinInQuotes.length === 0) {
-          logger.warn({ kur }, 'altin.in: no historical data received');
-          continue;
-        }
-
-        await this.storeQuotesBatch(altinInQuotes);
-        totalQuotes += altinInQuotes.length;
-        logger.info({ kur, instrumentId, count: altinInQuotes.length }, 'altin.in historical data backfilled');
-      } catch (error) {
-        failedCount++;
-        logger.error({ err: error, kur, instrumentId }, 'altin.in: failed to backfill instrument');
       }
     }
 
