@@ -93,10 +93,20 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
         } as any);
       }
 
+      // Deduplicate: keep one record per calendar day.
+      // Records are ordered desc(ts), so the first seen for a day is the latest timestamp.
+      const seenDays = new Set<string>();
+      const deduped = historicalQuotes.filter((q) => {
+        const day = new Date(q.ts * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
+        if (seenDays.has(day)) return false;
+        seenDays.add(day);
+        return true;
+      });
+
       const response: HistoryResponse = {
         instrumentId,
         category: instrument.category,
-        points: historicalQuotes.map((q) => ({
+        points: deduped.map((q) => ({
           ts: q.ts,
           price: parseFloat(q.price),
           buy: q.buy ? parseFloat(q.buy) : null,

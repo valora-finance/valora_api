@@ -29,7 +29,6 @@ const BACKFILL_INSTRUMENTS: Array<{ kod: string; instrumentId: string }> = [
   { kod: 'ATA_YENI', instrumentId: 'ata' },
   { kod: 'ATA5_YENI', instrumentId: 'ata5' },
   { kod: 'GREMESE_YENI', instrumentId: 'gremse' },
-  { kod: 'GUMUSTRY', instrumentId: 'gumus_gram' },
   { kod: 'XAGUSD', instrumentId: 'gumus_ons' },
   { kod: 'GUMUSUSD', instrumentId: 'gumus_usd' },
   { kod: 'XPTUSD', instrumentId: 'platin_ons' },
@@ -246,6 +245,7 @@ export class RefreshService {
         const oldest = await db.query.quotes.findFirst({
           where: (q, { eq, lte }) => and(
             eq(q.instrumentId, instrumentId),
+            eq(q.source, 'altin_in'),  // Only skip if altin.in data already exists
             lte(q.ts, cutoffTs + 30 * 24 * 60 * 60)
           ),
           orderBy: quotes.ts,
