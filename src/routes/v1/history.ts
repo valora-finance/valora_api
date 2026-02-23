@@ -93,13 +93,15 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
         } as any);
       }
 
-      // Deduplicate: keep one record per calendar day.
-      // Records are ordered desc(ts), so the first seen for a day is the latest timestamp.
-      const seenDays = new Set<string>();
+      // Deduplicate: keep one record per calendar hour.
+      // Hour-level dedup preserves intraday (1D) resolution while preventing
+      // multi-source duplicates (e.g. two different sources writing to the same hour).
+      // Records are ordered desc(ts), so the first seen for an hour is the latest timestamp.
+      const seenHours = new Set<string>();
       const deduped = historicalQuotes.filter((q) => {
-        const day = new Date(q.ts * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
-        if (seenDays.has(day)) return false;
-        seenDays.add(day);
+        const hour = new Date(q.ts * 1000).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        if (seenHours.has(hour)) return false;
+        seenHours.add(hour);
         return true;
       });
 
