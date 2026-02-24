@@ -26,3 +26,9 @@ services:
         value: http://www.tcmb.gov.tr/kurlar
       - key: EXCHANGERATE_BASE_URL
         value: https://api.exchangerate.host
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false

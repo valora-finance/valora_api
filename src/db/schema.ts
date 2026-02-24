@@ -80,6 +80,7 @@ export const users = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     email: varchar('email', { length: 255 }).notNull().unique(),
     passwordHash: varchar('password_hash', { length: 255 }),
+    firebaseUid: varchar('firebase_uid', { length: 128 }).unique(),
     provider: varchar('provider', { length: 20 }).notNull().default('email'),
     providerId: varchar('provider_id', { length: 255 }),
     displayName: varchar('display_name', { length: 100 }),

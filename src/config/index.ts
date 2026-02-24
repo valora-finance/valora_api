@@ -30,9 +30,12 @@ export const config = {
     cooldownMs: parseInt(process.env.COOLDOWN_MS || '10000', 10),
   },
 
-  // JWT Authentication
-  jwtSecret: process.env.JWT_SECRET || 'valora-dev-secret-change-in-production',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
+  // Firebase Admin SDK
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || '',
+  },
 
   // Monitoring
   sentry: {

@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import jwt from '@fastify/jwt';
 import { config } from './config';
 import { logger } from './utils/logger';
 
@@ -57,12 +56,6 @@ export async function buildApp() {
       'x-ratelimit-reset': true,
       'retry-after': true,
     },
-  });
-
-  // JWT authentication
-  await app.register(jwt, {
-    secret: config.jwtSecret,
-    sign: { expiresIn: config.jwtExpiresIn },
   });
 
   // Request logging
