@@ -82,7 +82,9 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 
     request.authUser = { id: user.id, email: user.email };
   } catch (err) {
-    logger.warn({ err }, 'Authentication failed');
-    reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token' });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const hasHeader = !!request.headers.authorization;
+    logger.warn({ err, hasAuthHeader: hasHeader, errMsg }, 'Authentication failed');
+    reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token', detail: errMsg });
   }
 }
