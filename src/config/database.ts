@@ -9,6 +9,7 @@ const queryClient = postgres(config.databaseUrl, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
+  prepare: false, // Neon pooler (PgBouncer transaction mode) prepared statement desteklemez
 });
 
 // Create drizzle instance

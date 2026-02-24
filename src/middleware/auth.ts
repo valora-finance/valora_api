@@ -17,22 +17,31 @@ declare module 'fastify' {
 }
 
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
+  // 1. Token doğrulama
+  const authHeader = request.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Missing authorization header' });
+  }
+
+  let decoded;
   try {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Missing authorization header' });
-    }
-
     const idToken = authHeader.slice(7);
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn({ err, errMsg }, 'Token verification failed');
+    return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token', detail: errMsg });
+  }
 
-    // 1. Önce firebaseUid ile ara
+  // 2. DB'den kullanıcı bul/oluştur (hata olursa 500 dön, 401 değil)
+  try {
+    // Önce firebaseUid ile ara
     let user = await db.query.users.findFirst({
       where: eq(users.firebaseUid, decoded.uid),
     });
 
     if (!user) {
-      // 2. Email ile mevcut kullanıcı bağlama (eski kayıtlar için)
+      // Email ile mevcut kullanıcı bağlama (eski kayıtlar için)
       if (decoded.email) {
         const existingByEmail = await db.query.users.findFirst({
           where: eq(users.email, decoded.email.toLowerCase()),
@@ -46,7 +55,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         }
       }
 
-      // 3. Yeni kullanıcı otomatik oluştur
+      // Yeni kullanıcı otomatik oluştur
       if (!user) {
         const email = decoded.email?.toLowerCase() ?? `firebase_${decoded.uid}@noemail.valora`;
         const signInProvider = (decoded.firebase as { sign_in_provider?: string } | undefined)?.sign_in_provider ?? 'firebase';
@@ -83,8 +92,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     request.authUser = { id: user.id, email: user.email };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    const hasHeader = !!request.headers.authorization;
-    logger.warn({ err, hasAuthHeader: hasHeader, errMsg }, 'Authentication failed');
-    reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token', detail: errMsg });
+    logger.error({ err, firebaseUid: decoded.uid, errMsg }, 'DB error in auth middleware');
+    return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Database error', detail: errMsg });
   }
 }
