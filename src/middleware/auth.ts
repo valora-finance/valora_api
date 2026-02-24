@@ -30,7 +30,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.warn({ err, errMsg }, 'Token verification failed');
-    return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token', detail: errMsg });
+    return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid or expired token' });
   }
 
   // 2. DB'den kullanıcı bul/oluştur (hata olursa 500 dön, 401 değil)
@@ -93,6 +93,6 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error({ err, firebaseUid: decoded.uid, errMsg }, 'DB error in auth middleware');
-    return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Database error', detail: errMsg });
+    return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Database error' });
   }
 }
