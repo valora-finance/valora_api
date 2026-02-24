@@ -35,6 +35,42 @@ const healthRoute: FastifyPluginAsync = async (fastify) => {
       return reply.code(500).send({ error: msg });
     }
   });
+
+  // Eksik kolonları ekle — tek seferlik migration
+  fastify.get('/health/fix-schema', async (request, reply) => {
+    const results: string[] = [];
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR(128) UNIQUE`);
+      results.push('firebase_uid added');
+    } catch (e) { results.push(`firebase_uid: ${(e as Error).message}`); }
+
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS provider VARCHAR(20) NOT NULL DEFAULT 'email'`);
+      results.push('provider added');
+    } catch (e) { results.push(`provider: ${(e as Error).message}`); }
+
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255)`);
+      results.push('provider_id added');
+    } catch (e) { results.push(`provider_id: ${(e as Error).message}`); }
+
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL`);
+      results.push('firebase_uid index created');
+    } catch (e) { results.push(`firebase_uid index: ${(e as Error).message}`); }
+
+    try {
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_users_provider_provider_id ON users USING btree (provider, provider_id)`);
+      results.push('provider index created');
+    } catch (e) { results.push(`provider index: ${(e as Error).message}`); }
+
+    // Verify
+    const columns = await db.execute(
+      sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position`
+    );
+
+    return { results, columns };
+  });
 };
 
 export default healthRoute;
