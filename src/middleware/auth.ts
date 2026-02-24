@@ -51,16 +51,27 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         const email = decoded.email?.toLowerCase() ?? `firebase_${decoded.uid}@noemail.valora`;
         const signInProvider = (decoded.firebase as { sign_in_provider?: string } | undefined)?.sign_in_provider ?? 'firebase';
 
+        // onConflictDoNothing: eş zamanlı kayıt isteklerinde (race condition) unique hata fırlatmaz
         const [newUser] = await db.insert(users).values({
           email,
           firebaseUid: decoded.uid,
           displayName: decoded.name ?? null,
           provider: signInProvider,
-        }).returning();
+        }).onConflictDoNothing().returning();
 
-        logger.info({ userId: newUser.id, provider: signInProvider }, 'New user auto-created via Firebase');
-        user = newUser;
+        if (newUser) {
+          logger.info({ userId: newUser.id, provider: signInProvider }, 'New user auto-created via Firebase');
+          user = newUser;
+        } else {
+          // Race condition: başka bir istek aynı anda insert yaptı, yeniden sorgula
+          user = await db.query.users.findFirst({ where: eq(users.firebaseUid, decoded.uid) })
+            ?? await db.query.users.findFirst({ where: eq(users.email, email) });
+        }
       }
+    }
+
+    if (!user) {
+      return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Failed to resolve user' });
     }
 
     if (!user.isActive) {
