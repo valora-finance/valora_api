@@ -17,10 +17,19 @@ const healthRoute: FastifyPluginAsync = async (fastify) => {
       const columns = await db.execute(
         sql`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position`
       );
-      const migrations = await db.execute(
-        sql`SELECT * FROM __drizzle_migrations ORDER BY created_at`
+
+      let migrations = null;
+      try {
+        migrations = await db.execute(
+          sql`SELECT * FROM "__drizzle_migrations" ORDER BY created_at`
+        );
+      } catch { migrations = 'table_not_found'; }
+
+      const tables = await db.execute(
+        sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
       );
-      return { columns, migrations };
+
+      return { columns, migrations, tables };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return reply.code(500).send({ error: msg });
