@@ -57,6 +57,13 @@
       "when": 1771804800000,
       "tag": "0007_fix_gumus_corruption",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772006400000,
+      "tag": "0008_add_firebase_uid",
+      "breakpoints": true
     }
   ]
 }
