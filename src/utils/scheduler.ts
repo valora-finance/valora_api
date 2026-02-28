@@ -11,8 +11,8 @@ const refreshService = new RefreshService();
 export function initScheduler() {
   logger.info('Initializing background scheduler...');
 
-  // Metals: Refresh every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
+  // Metals: Refresh every 15 minutes (matches 15-minute stale threshold)
+  cron.schedule('*/15 * * * *', async () => {
     logger.info('Running scheduled metals refresh...');
     try {
       await refreshService.refreshIfStale('metals');
@@ -21,8 +21,10 @@ export function initScheduler() {
     }
   });
 
-  // Forex: Refresh every 10 minutes
-  cron.schedule('*/10 * * * *', async () => {
+  // Forex: Refresh every 15 minutes, hafta sonu TCMB yayın yapmaz
+  cron.schedule('*/15 * * * *', async () => {
+    const day = new Date().getDay();
+    if (day === 0 || day === 6) return; // Pazar=0, Cumartesi=6
     logger.info('Running scheduled forex refresh...');
     try {
       await refreshService.refreshIfStale('fx');
