@@ -93,15 +93,19 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
         } as any);
       }
 
-      // Deduplicate: keep one record per calendar hour.
-      // Hour-level dedup preserves intraday (1D) resolution while preventing
-      // multi-source duplicates (e.g. two different sources writing to the same hour).
-      // Records are ordered desc(ts), so the first seen for an hour is the latest timestamp.
-      const seenHours = new Set<string>();
+      // Deduplicate: for 1D range (≤86400s) keep one record per 10-minute bucket;
+      // for longer ranges keep one record per calendar hour.
+      // Records are ordered desc(ts), so the first seen for a bucket is the latest timestamp.
+      const requestedRange = (to ?? Math.floor(Date.now() / 1000)) - (from ?? 0);
+      const use10MinBuckets = requestedRange <= 86400;
+
+      const seenBuckets = new Set<number>();
       const deduped = historicalQuotes.filter((q) => {
-        const hour = new Date(q.ts * 1000).toISOString().slice(0, 13); // YYYY-MM-DDTHH
-        if (seenHours.has(hour)) return false;
-        seenHours.add(hour);
+        const bucketKey = use10MinBuckets
+          ? Math.floor(q.ts / 600)   // 10-minute buckets (600s)
+          : Math.floor(q.ts / 3600); // hourly buckets (3600s)
+        if (seenBuckets.has(bucketKey)) return false;
+        seenBuckets.add(bucketKey);
         return true;
       });
 
