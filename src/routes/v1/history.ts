@@ -93,17 +93,21 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
         } as any);
       }
 
-      // Deduplicate: for 1D range (≤86400s) keep one record per 10-minute bucket;
-      // for longer ranges keep one record per calendar hour.
-      // Records are ordered desc(ts), so the first seen for a bucket is the latest timestamp.
+      // Deduplicate by time bucket based on requested range:
+      //   ≤ 86400s  (1D)      → 10-minute buckets (600s)   → max ~144 points
+      //   ≤ 2592000s (1W/1M)  → 6-hour buckets  (21600s)  → max ~28/120 points
+      //   longer    (3M+)     → hourly buckets   (3600s)   → mobile aggregates to daily
+      // Records are ordered desc(ts), so the first seen per bucket is the latest timestamp.
       const requestedRange = (to ?? Math.floor(Date.now() / 1000)) - (from ?? 0);
-      const use10MinBuckets = requestedRange <= 86400;
+      const bucketSize = requestedRange <= 86400
+        ? 600    // 10 dakika
+        : requestedRange <= 2592000
+          ? 21600  // 6 saat
+          : 3600;  // 1 saat
 
       const seenBuckets = new Set<number>();
       const deduped = historicalQuotes.filter((q) => {
-        const bucketKey = use10MinBuckets
-          ? Math.floor(q.ts / 600)   // 10-minute buckets (600s)
-          : Math.floor(q.ts / 3600); // hourly buckets (3600s)
+        const bucketKey = Math.floor(q.ts / bucketSize);
         if (seenBuckets.has(bucketKey)) return false;
         seenBuckets.add(bucketKey);
         return true;
