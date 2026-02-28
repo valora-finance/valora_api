@@ -99,7 +99,7 @@ export class PortfolioService {
     return {
       portfolios: enrichedPortfolios,
       summary: {
-        totalValue: Math.round((totalSavings + totalDebts) * 100) / 100,
+        totalValue: Math.round((totalSavings - totalDebts) * 100) / 100,
         totalSavings: Math.round(totalSavings * 100) / 100,
         totalDebts: Math.round(totalDebts * 100) / 100,
       },
