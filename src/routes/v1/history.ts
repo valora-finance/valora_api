@@ -105,22 +105,24 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
           ? 21600  // 6 saat
           : 3600;  // 1 saat
 
-      // Dedup: one record per bucket, preferring records with buy data (full price).
-      // Records from altin.in have buy=null and price=sell_only, which conflicts
-      // with sources like truncgil that store price=(buy+sell)/2. Keeping the
-      // record with buy!=null avoids the zigzag caused by mixed price methodologies.
-      type Quote = typeof historicalQuotes[0];
-      const bucketMap = new Map<number, Quote>();
-      for (const q of historicalQuotes) {
+      // Source filtering: altin.in records have buy=null and price=sell_only, while
+      // truncgil/TCMB records have buy!=null and price=(buy+sell)/2. When both types
+      // exist in the same result set they create zigzag patterns (different price
+      // methodologies, different bucket slots). If full-price records exist at all,
+      // exclude sell-only records entirely so the chart uses one consistent source.
+      const hasFullPriceData = historicalQuotes.some((q) => q.buy !== null);
+      const priceFiltered = hasFullPriceData
+        ? historicalQuotes.filter((q) => q.buy !== null)
+        : historicalQuotes;
+
+      // Dedup: one record per bucket (latest timestamp wins).
+      const seenBuckets = new Set<number>();
+      const deduped = priceFiltered.filter((q) => {
         const bucketKey = Math.floor(q.ts / bucketSize);
-        if (!bucketMap.has(bucketKey)) {
-          bucketMap.set(bucketKey, q);
-        } else if (bucketMap.get(bucketKey)!.buy === null && q.buy !== null) {
-          // Upgrade: current best has no buy data but this one does
-          bucketMap.set(bucketKey, q);
-        }
-      }
-      const deduped = Array.from(bucketMap.values());
+        if (seenBuckets.has(bucketKey)) return false;
+        seenBuckets.add(bucketKey);
+        return true;
+      });
 
       const response: HistoryResponse = {
         instrumentId,
