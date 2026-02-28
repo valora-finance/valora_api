@@ -99,11 +99,10 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
       //   longer    (3M+)     → hourly buckets   (3600s)   → mobile aggregates to daily
       // Records are ordered desc(ts), so the first seen per bucket is the latest timestamp.
       const requestedRange = (to ?? Math.floor(Date.now() / 1000)) - (from ?? 0);
-      const bucketSize = requestedRange <= 86400
-        ? 600    // 10 dakika
-        : requestedRange <= 2592000
-          ? 21600  // 6 saat
-          : 3600;  // 1 saat
+      // 1D: 10-minute buckets → ~144 raw points, mobile shows as-is
+      // 1W/1M/3M+: hourly buckets → mobile aggregates into 6h or daily OHLC buckets,
+      //   which requires multiple raw points per bucket to compute real open/close values.
+      const bucketSize = requestedRange <= 86400 ? 600 : 3600;
 
       // Source filtering: altin.in records have buy=null and price=sell_only, while
       // truncgil/TCMB records have buy!=null and price=(buy+sell)/2. When both types
