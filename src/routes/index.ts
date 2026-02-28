@@ -6,6 +6,8 @@ import instrumentsRoute from './v1/instruments';
 import historyRoute from './v1/history';
 import authRoute from './v1/auth';
 import portfoliosRoute from './v1/portfolios';
+import preferencesRoute from './v1/preferences';
+import alertsRoute from './v1/alerts';
 
 const routes: FastifyPluginAsync = async (fastify) => {
   // Health check (no auth required)
@@ -20,6 +22,10 @@ const routes: FastifyPluginAsync = async (fastify) => {
   // Auth & portfolio routes
   await fastify.register(authRoute);
   await fastify.register(portfoliosRoute);
+
+  // Preferences & alerts routes
+  await fastify.register(preferencesRoute);
+  await fastify.register(alertsRoute);
 };
 
 export default routes;

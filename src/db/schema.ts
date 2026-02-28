@@ -1,4 +1,4 @@
-import { pgTable, varchar, integer, boolean, timestamp, bigint, decimal, text, uuid, index, check, date } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, integer, boolean, timestamp, bigint, decimal, text, uuid, index, check, date, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // Instruments table - Enstrüman tanımları (metals/forex)
@@ -134,6 +134,63 @@ export const portfolioHoldings = pgTable(
   })
 );
 
+// User favorites table - Favori enstrümanlar
+export const userFavorites = pgTable(
+  'user_favorites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    instrumentId: varchar('instrument_id', { length: 50 }).notNull().references(() => instruments.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_favorites_user').on(table.userId),
+    uniqueUserInstrument: uniqueIndex('idx_favorites_user_instrument').on(table.userId, table.instrumentId),
+  })
+);
+
+// User pins table - Üste sabitlenen enstrümanlar
+export const userPins = pgTable(
+  'user_pins',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    instrumentId: varchar('instrument_id', { length: 50 }).notNull().references(() => instruments.id),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_pins_user').on(table.userId),
+    uniqueUserInstrument: uniqueIndex('idx_pins_user_instrument').on(table.userId, table.instrumentId),
+  })
+);
+
+// Price alerts table - Fiyat alarm kuralları
+export const priceAlerts = pgTable(
+  'price_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    instrumentId: varchar('instrument_id', { length: 50 }).notNull().references(() => instruments.id),
+    alertType: varchar('alert_type', { length: 20 }).notNull(), // 'percentage' | 'amount' | 'scheduled'
+    direction: varchar('direction', { length: 10 }), // 'up' | 'down' | 'any' (null for scheduled)
+    thresholdValue: decimal('threshold_value', { precision: 18, scale: 6 }),
+    scheduledTimes: text('scheduled_times'), // JSON array of "HH:mm" strings
+    isActive: boolean('is_active').notNull().default(true),
+    referencePrice: decimal('reference_price', { precision: 18, scale: 6 }),
+    lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_alerts_user').on(table.userId),
+    instrumentIdx: index('idx_alerts_instrument').on(table.instrumentId),
+    activeIdx: index('idx_alerts_active').on(table.userId, table.isActive),
+    alertTypeCheck: check('alert_type_check', sql`${table.alertType} IN ('percentage', 'amount', 'scheduled')`),
+    directionCheck: check('direction_check', sql`${table.direction} IS NULL OR ${table.direction} IN ('up', 'down', 'any')`),
+  })
+);
+
 // Type exports for TypeScript
 export type Instrument = typeof instruments.$inferSelect;
 export type NewInstrument = typeof instruments.$inferInsert;
@@ -149,3 +206,9 @@ export type Portfolio = typeof portfolios.$inferSelect;
 export type NewPortfolio = typeof portfolios.$inferInsert;
 export type PortfolioHolding = typeof portfolioHoldings.$inferSelect;
 export type NewPortfolioHolding = typeof portfolioHoldings.$inferInsert;
+export type UserFavorite = typeof userFavorites.$inferSelect;
+export type NewUserFavorite = typeof userFavorites.$inferInsert;
+export type UserPin = typeof userPins.$inferSelect;
+export type NewUserPin = typeof userPins.$inferInsert;
+export type PriceAlert = typeof priceAlerts.$inferSelect;
+export type NewPriceAlert = typeof priceAlerts.$inferInsert;
