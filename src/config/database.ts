@@ -6,7 +6,7 @@ import * as schema from '../db/schema';
 
 // Create postgres connection
 const queryClient = postgres(config.databaseUrl, {
-  max: 10,
+  max: 3,
   idle_timeout: 20,
   connect_timeout: 10,
   prepare: false, // Neon pooler (PgBouncer transaction mode) prepared statement desteklemez
