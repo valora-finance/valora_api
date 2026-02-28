@@ -105,13 +105,22 @@ const historyRoute: FastifyPluginAsync = async (fastify) => {
           ? 21600  // 6 saat
           : 3600;  // 1 saat
 
-      const seenBuckets = new Set<number>();
-      const deduped = historicalQuotes.filter((q) => {
+      // Dedup: one record per bucket, preferring records with buy data (full price).
+      // Records from altin.in have buy=null and price=sell_only, which conflicts
+      // with sources like truncgil that store price=(buy+sell)/2. Keeping the
+      // record with buy!=null avoids the zigzag caused by mixed price methodologies.
+      type Quote = typeof historicalQuotes[0];
+      const bucketMap = new Map<number, Quote>();
+      for (const q of historicalQuotes) {
         const bucketKey = Math.floor(q.ts / bucketSize);
-        if (seenBuckets.has(bucketKey)) return false;
-        seenBuckets.add(bucketKey);
-        return true;
-      });
+        if (!bucketMap.has(bucketKey)) {
+          bucketMap.set(bucketKey, q);
+        } else if (bucketMap.get(bucketKey)!.buy === null && q.buy !== null) {
+          // Upgrade: current best has no buy data but this one does
+          bucketMap.set(bucketKey, q);
+        }
+      }
+      const deduped = Array.from(bucketMap.values());
 
       const response: HistoryResponse = {
         instrumentId,
