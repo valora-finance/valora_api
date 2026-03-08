@@ -52,8 +52,10 @@ export async function sendVerificationCode(email: string): Promise<void> {
     expiresAt,
   });
 
-  // E-posta gönder
-  await sendVerificationEmail(normalizedEmail, code);
+  // E-posta arka planda gönder — client'ı bloklamaz
+  sendVerificationEmail(normalizedEmail, code).catch((err) => {
+    logger.error({ err, email: normalizedEmail }, 'E-posta gönderimi başarısız');
+  });
 
   logger.info({ email: normalizedEmail }, 'Doğrulama kodu gönderildi');
 }
