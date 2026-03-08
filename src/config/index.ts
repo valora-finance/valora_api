@@ -39,6 +39,15 @@ export const config = {
       .replace(/\\n/g, '\n'),         // \n → gerçek satır sonu
   },
 
+  // Email (Gmail SMTP)
+  email: {
+    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+    smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    from: process.env.EMAIL_FROM || 'Valora <noreply@gmail.com>',
+  },
+
   // Monitoring
   sentry: {
     dsn: process.env.SENTRY_DSN,

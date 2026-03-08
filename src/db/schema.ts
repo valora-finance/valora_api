@@ -191,6 +191,23 @@ export const priceAlerts = pgTable(
   })
 );
 
+// Email verifications table - E-posta doğrulama kodları
+export const emailVerifications = pgTable(
+  'email_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).notNull(),
+    code: varchar('code', { length: 6 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    emailIdx: index('idx_email_verifications_email').on(table.email),
+    expiresAtIdx: index('idx_email_verifications_expires').on(table.expiresAt),
+  })
+);
+
 // Type exports for TypeScript
 export type Instrument = typeof instruments.$inferSelect;
 export type NewInstrument = typeof instruments.$inferInsert;
@@ -212,3 +229,5 @@ export type UserPin = typeof userPins.$inferSelect;
 export type NewUserPin = typeof userPins.$inferInsert;
 export type PriceAlert = typeof priceAlerts.$inferSelect;
 export type NewPriceAlert = typeof priceAlerts.$inferInsert;
+export type EmailVerification = typeof emailVerifications.$inferSelect;
+export type NewEmailVerification = typeof emailVerifications.$inferInsert;

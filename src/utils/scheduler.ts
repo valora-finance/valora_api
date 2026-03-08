@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { RefreshService } from '../services/refresh.service';
 import { cacheService } from '../services/cache.service';
+import { cleanupExpiredVerifications } from '../services/verification.service';
 import { logger } from './logger';
 
 const refreshService = new RefreshService();
@@ -37,6 +38,15 @@ export function initScheduler() {
   cron.schedule('0 * * * *', () => {
     logger.info('Running cache cleanup...');
     cacheService.cleanup();
+  });
+
+  // Süresi dolmuş doğrulama kodlarını temizle: Her saat
+  cron.schedule('30 * * * *', async () => {
+    try {
+      await cleanupExpiredVerifications();
+    } catch (error) {
+      logger.error({ err: error }, 'Doğrulama kodu temizleme hatası');
+    }
   });
 
   logger.info('Background scheduler initialized successfully');
