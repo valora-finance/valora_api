@@ -1,32 +1,12 @@
-import nodemailer from 'nodemailer';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-let transporter: nodemailer.Transporter | null = null;
-
-function getTransporter(): nodemailer.Transporter {
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: config.email.smtpHost,
-    port: config.email.smtpPort,
-    secure: config.email.smtpPort === 465,
-    auth: {
-      user: config.email.smtpUser,
-      pass: config.email.smtpPass,
-    },
-  });
-
-  return transporter;
-}
-
 /**
- * Doğrulama kodu e-postası gönderir.
+ * Doğrulama kodu e-postası gönderir (Resend HTTP API).
  */
 export async function sendVerificationEmail(email: string, code: string): Promise<void> {
-  if (!config.email.smtpUser || !config.email.smtpPass) {
-    logger.warn('SMTP kimlik bilgileri tanımlı değil — e-posta gönderilemiyor');
-    // Geliştirme ortamında kodu logluyoruz
+  if (!config.resend.apiKey) {
+    logger.warn('RESEND_API_KEY tanımlı değil — e-posta gönderilemiyor');
     if (config.env !== 'production') {
       logger.info({ email, code }, 'DEV: Doğrulama kodu (e-posta gönderilmedi)');
       return;
@@ -36,12 +16,24 @@ export async function sendVerificationEmail(email: string, code: string): Promis
 
   const html = buildVerificationEmailHtml(code);
 
-  await getTransporter().sendMail({
-    from: config.email.from,
-    to: email,
-    subject: 'Valora — Doğrulama Kodu',
-    html,
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.resend.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: config.resend.from,
+      to: [email],
+      subject: 'Valora — Doğrulama Kodu',
+      html,
+    }),
   });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`Resend API hatası: ${res.status} — ${(body as Record<string, unknown>).message || res.statusText}`);
+  }
 
   logger.info({ email }, 'Doğrulama e-postası gönderildi');
 }
