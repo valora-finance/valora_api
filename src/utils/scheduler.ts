@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { RefreshService } from '../services/refresh.service';
 import { cacheService } from '../services/cache.service';
 import { cleanupExpiredVerifications } from '../services/verification.service';
+import { notificationService } from '../services/notification.service';
 import { logger } from './logger';
 
 const refreshService = new RefreshService();
@@ -46,6 +47,15 @@ export function initScheduler() {
       await cleanupExpiredVerifications();
     } catch (error) {
       logger.error({ err: error }, 'Doğrulama kodu temizleme hatası');
+    }
+  });
+
+  // Fiyat alarmlarını değerlendir: Her 5 dakikada
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      await notificationService.evaluateAlerts();
+    } catch (error) {
+      logger.error({ err: error }, 'Alert evaluation failed');
     }
   });
 

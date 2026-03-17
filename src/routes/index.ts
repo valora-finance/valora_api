@@ -8,6 +8,7 @@ import authRoute from './v1/auth';
 import portfoliosRoute from './v1/portfolios';
 import preferencesRoute from './v1/preferences';
 import alertsRoute from './v1/alerts';
+import pushTokenRoute from './v1/pushToken';
 
 const routes: FastifyPluginAsync = async (fastify) => {
   // Health check (no auth required)
@@ -26,6 +27,7 @@ const routes: FastifyPluginAsync = async (fastify) => {
   // Preferences & alerts routes
   await fastify.register(preferencesRoute);
   await fastify.register(alertsRoute);
+  await fastify.register(pushTokenRoute);
 };
 
 export default routes;

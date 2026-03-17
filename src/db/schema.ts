@@ -191,6 +191,24 @@ export const priceAlerts = pgTable(
   })
 );
 
+// Device tokens table - Push notification token'ları
+export const deviceTokens = pgTable(
+  'device_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    token: varchar('token', { length: 512 }).notNull().unique(),
+    platform: varchar('platform', { length: 10 }).notNull(), // 'ios' | 'android'
+    deviceId: varchar('device_id', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_device_tokens_user').on(table.userId),
+    platformCheck: check('platform_check', sql`${table.platform} IN ('ios', 'android')`),
+  })
+);
+
 // Email verifications table - E-posta doğrulama kodları
 export const emailVerifications = pgTable(
   'email_verifications',
@@ -229,5 +247,7 @@ export type UserPin = typeof userPins.$inferSelect;
 export type NewUserPin = typeof userPins.$inferInsert;
 export type PriceAlert = typeof priceAlerts.$inferSelect;
 export type NewPriceAlert = typeof priceAlerts.$inferInsert;
+export type DeviceToken = typeof deviceTokens.$inferSelect;
+export type NewDeviceToken = typeof deviceTokens.$inferInsert;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type NewEmailVerification = typeof emailVerifications.$inferInsert;
