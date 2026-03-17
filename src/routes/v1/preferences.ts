@@ -1,6 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/auth';
 import { PreferencesService } from '../../services/preferences.service';
+import { db } from '../../config/database';
+import { notificationPreferences } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
 
 const preferencesService = new PreferencesService();
@@ -102,6 +105,69 @@ const preferencesRoute: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+  // GET /v1/notification-preferences — Bildirim tercihlerini getir
+  fastify.get('/v1/notification-preferences', async (request, reply) => {
+    try {
+      const userId = request.authUser!.id;
+      const prefs = await db.query.notificationPreferences.findFirst({
+        where: eq(notificationPreferences.userId, userId),
+      });
+
+      return {
+        generalNotifications: prefs?.generalNotifications ?? true,
+        priceAlertNotifications: prefs?.priceAlertNotifications ?? false,
+        zekatNotifications: prefs?.zekatNotifications ?? false,
+      };
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to fetch notification preferences');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Failed to fetch notification preferences' });
+    }
+  });
+
+  // PATCH /v1/notification-preferences — Bildirim tercihlerini güncelle (upsert)
+  fastify.patch<{
+    Body: {
+      generalNotifications?: boolean;
+      priceAlertNotifications?: boolean;
+      zekatNotifications?: boolean;
+    };
+  }>('/v1/notification-preferences', async (request, reply) => {
+    try {
+      const userId = request.authUser!.id;
+      const { generalNotifications: general, priceAlertNotifications: priceAlert, zekatNotifications: zekat } = request.body;
+
+      const values: Record<string, unknown> = { userId, updatedAt: new Date() };
+      if (general !== undefined) values.generalNotifications = general;
+      if (priceAlert !== undefined) values.priceAlertNotifications = priceAlert;
+      if (zekat !== undefined) values.zekatNotifications = zekat;
+
+      await db.insert(notificationPreferences)
+        .values(values as typeof notificationPreferences.$inferInsert)
+        .onConflictDoUpdate({
+          target: notificationPreferences.userId,
+          set: {
+            ...(general !== undefined && { generalNotifications: general }),
+            ...(priceAlert !== undefined && { priceAlertNotifications: priceAlert }),
+            ...(zekat !== undefined && { zekatNotifications: zekat }),
+            updatedAt: new Date(),
+          },
+        });
+
+      // Güncel tercihleri geri dön
+      const updated = await db.query.notificationPreferences.findFirst({
+        where: eq(notificationPreferences.userId, userId),
+      });
+
+      return {
+        generalNotifications: updated?.generalNotifications ?? true,
+        priceAlertNotifications: updated?.priceAlertNotifications ?? false,
+        zekatNotifications: updated?.zekatNotifications ?? false,
+      };
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to update notification preferences');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Failed to update notification preferences' });
+    }
+  });
 };
 
 export default preferencesRoute;

@@ -209,6 +209,15 @@ export const deviceTokens = pgTable(
   })
 );
 
+// Notification preferences table - Bildirim tercihleri
+export const notificationPreferences = pgTable('notification_preferences', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  generalNotifications: boolean('general_notifications').notNull().default(true),
+  priceAlertNotifications: boolean('price_alert_notifications').notNull().default(false),
+  zekatNotifications: boolean('zekat_notifications').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Email verifications table - E-posta doğrulama kodları
 export const emailVerifications = pgTable(
   'email_verifications',
@@ -247,6 +256,8 @@ export type UserPin = typeof userPins.$inferSelect;
 export type NewUserPin = typeof userPins.$inferInsert;
 export type PriceAlert = typeof priceAlerts.$inferSelect;
 export type NewPriceAlert = typeof priceAlerts.$inferInsert;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreference = typeof notificationPreferences.$inferInsert;
 export type DeviceToken = typeof deviceTokens.$inferSelect;
 export type NewDeviceToken = typeof deviceTokens.$inferInsert;
 export type EmailVerification = typeof emailVerifications.$inferSelect;

@@ -1,6 +1,6 @@
 import { admin } from '../config/firebaseAdmin';
 import { db } from '../config/database';
-import { deviceTokens, priceAlerts, latestQuotes, instruments } from '../db/schema';
+import { deviceTokens, priceAlerts, latestQuotes, instruments, notificationPreferences } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 
@@ -130,12 +130,25 @@ export class NotificationService {
     });
     const instrumentMap = new Map(instrumentData.map((i) => [i.id, i.name]));
 
+    // Kullanıcı bildirim tercihlerini al
+    const userIds = [...new Set(activeAlerts.map((a) => a.userId))];
+    const userPrefs = await db.query.notificationPreferences.findMany({
+      where: inArray(notificationPreferences.userId, userIds),
+    });
+    const prefsMap = new Map(userPrefs.map((p) => [p.userId, p]));
+
     const now = new Date();
 
     for (const alert of activeAlerts) {
       try {
         const quote = quoteMap.get(alert.instrumentId);
         if (!quote) continue;
+
+        // Kullanıcı bildirim tercihini kontrol et
+        const userPref = prefsMap.get(alert.userId);
+        // Tercih kaydı yoksa varsayılan: priceAlertNotifications = false
+        if (userPref && !userPref.priceAlertNotifications) continue;
+        if (!userPref) continue; // Tercih kaydı olmayan kullanıcılara gönderme
 
         const currentPrice = parseFloat(quote.sell ?? quote.price);
         const instrumentName = instrumentMap.get(alert.instrumentId) ?? alert.instrumentId;
