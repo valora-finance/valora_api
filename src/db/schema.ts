@@ -191,6 +191,33 @@ export const priceAlerts = pgTable(
   })
 );
 
+// Device tokens table - Push notification token'ları
+export const deviceTokens = pgTable(
+  'device_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    token: varchar('token', { length: 512 }).notNull().unique(),
+    platform: varchar('platform', { length: 10 }).notNull(), // 'ios' | 'android'
+    deviceId: varchar('device_id', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('idx_device_tokens_user').on(table.userId),
+    platformCheck: check('platform_check', sql`${table.platform} IN ('ios', 'android')`),
+  })
+);
+
+// Notification preferences table - Bildirim tercihleri
+export const notificationPreferences = pgTable('notification_preferences', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  generalNotifications: boolean('general_notifications').notNull().default(true),
+  priceAlertNotifications: boolean('price_alert_notifications').notNull().default(false),
+  zekatNotifications: boolean('zekat_notifications').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Email verifications table - E-posta doğrulama kodları
 export const emailVerifications = pgTable(
   'email_verifications',
@@ -229,5 +256,9 @@ export type UserPin = typeof userPins.$inferSelect;
 export type NewUserPin = typeof userPins.$inferInsert;
 export type PriceAlert = typeof priceAlerts.$inferSelect;
 export type NewPriceAlert = typeof priceAlerts.$inferInsert;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreference = typeof notificationPreferences.$inferInsert;
+export type DeviceToken = typeof deviceTokens.$inferSelect;
+export type NewDeviceToken = typeof deviceTokens.$inferInsert;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type NewEmailVerification = typeof emailVerifications.$inferInsert;
