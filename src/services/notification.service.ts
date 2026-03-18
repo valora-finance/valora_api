@@ -41,9 +41,9 @@ export class NotificationService {
   /**
    * Token sil (logout veya unregister)
    */
-  async unregisterToken(token: string) {
+  async unregisterToken(token: string, userId: string) {
     const [deleted] = await db.delete(deviceTokens)
-      .where(eq(deviceTokens.token, token))
+      .where(and(eq(deviceTokens.token, token), eq(deviceTokens.userId, userId)))
       .returning({ id: deviceTokens.id });
 
     return !!deleted;

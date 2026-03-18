@@ -146,9 +146,9 @@ const preferencesRoute: FastifyPluginAsync = async (fastify) => {
         .onConflictDoUpdate({
           target: notificationPreferences.userId,
           set: {
-            ...(general !== undefined && { generalNotifications: general }),
-            ...(priceAlert !== undefined && { priceAlertNotifications: priceAlert }),
-            ...(zekat !== undefined && { zekatNotifications: zekat }),
+            ...(general !== undefined ? { generalNotifications: general } : {}),
+            ...(priceAlert !== undefined ? { priceAlertNotifications: priceAlert } : {}),
+            ...(zekat !== undefined ? { zekatNotifications: zekat } : {}),
             updatedAt: new Date(),
           },
         });

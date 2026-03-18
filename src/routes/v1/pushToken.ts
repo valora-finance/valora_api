@@ -44,7 +44,7 @@ const pushTokenRoute: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      await notificationService.unregisterToken(token);
+      await notificationService.unregisterToken(token, request.authUser!.id);
       return { success: true };
     } catch (error) {
       logger.error({ err: error }, 'Failed to unregister push token');
